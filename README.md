@@ -47,7 +47,7 @@ This project is ideal for building your own custom news platform with unique, AI
 4. Run the scraper:
 
 
-Step-by-step Flow
+## Step-by-step Flow
 1. Fetch Articles:
  - Tries to load articles via RSS feed.
  - If RSS fails, falls back to NDTV website scraping using multiple selectors.
@@ -63,3 +63,10 @@ Step-by-step Flow
  - Detailed logs for each step.
  - Auto skips malformed or short articles.
  - Adds delay between iterations to avoid rate-limiting.
+
+## Output
+    const output = {
+      text : summary ,
+      title : newTitle ,
+      image : generatedImage
+    }
