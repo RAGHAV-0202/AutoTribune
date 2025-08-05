@@ -33,7 +33,7 @@ This project is ideal for building your own custom news platform with unique, AI
 ## 📦 Installation
 
 1. **Clone this repo:**
-- git clone https://github.com/YOUR_USERNAME/auto-tribune.git
+- git clone https://github.com/RAGHAV-0202/AutoTribune.git
 - cd auto-tribune
 
 2.Install dependencies:
