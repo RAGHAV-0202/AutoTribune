@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ArticleCard } from "@/components/ArticleCard";
 import { Sidebar } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Newspaper, Search } from "lucide-react";
+import { RefreshCw, Newspaper, Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 
@@ -17,19 +17,31 @@ interface Article {
   slug: string;
 }
 
+const ARTICLES_PER_PAGE = 20;
+
 const Index = () => {
   const navigate = useNavigate();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const observerRef = useRef<HTMLDivElement>(null);
 
-  const fetchArticles = async () => {
+  const fetchArticles = async (pageNum: number = 0, append: boolean = false) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
+      if (!append) setLoading(true);
+      else setLoadingMore(true);
+
+      const from = pageNum * ARTICLES_PER_PAGE;
+      const to = from + ARTICLES_PER_PAGE - 1;
+
+      const { data, error, count } = await supabase
         .from('articles')
-        .select('*')
-        .order('published_at', { ascending: false });
+        .select('*', { count: 'exact' })
+        .order('published_at', { ascending: false })
+        .range(from, to);
 
       if (error) {
         console.error('Error fetching articles:', error);
@@ -41,7 +53,19 @@ const Index = () => {
         return;
       }
 
-      setArticles(data || []);
+      const newArticles = data || [];
+      
+      if (append) {
+        setArticles(prev => [...prev, ...newArticles]);
+      } else {
+        setArticles(newArticles);
+        setPage(0);
+      }
+
+      // Check if there are more articles to load
+      const totalLoaded = append ? articles.length + newArticles.length : newArticles.length;
+      setHasMore(count ? totalLoaded < count : newArticles.length === ARTICLES_PER_PAGE);
+
     } catch (error) {
       console.error('Error:', error);
       toast({
@@ -51,8 +75,43 @@ const Index = () => {
       });
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  const loadMoreArticles = useCallback(() => {
+    if (!loadingMore && hasMore && !searchQuery) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchArticles(nextPage, true);
+    }
+  }, [loadingMore, hasMore, page, searchQuery]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const target = entries[0];
+        if (target.isIntersecting) {
+          loadMoreArticles();
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px',
+      }
+    );
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observer.unobserve(observerRef.current);
+      }
+    };
+  }, [loadMoreArticles]);
 
   useEffect(() => {
     fetchArticles();
@@ -62,10 +121,19 @@ const Index = () => {
     navigate(`/article/${slug}`);
   };
 
-  const filteredArticles = articles.filter(article =>
-    article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    article.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleRefresh = () => {
+    setArticles([]);
+    setPage(0);
+    setHasMore(true);
+    fetchArticles();
+  };
+
+  const filteredArticles = searchQuery 
+    ? articles.filter(article =>
+        article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        article.content.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : articles;
 
   const featuredArticle = filteredArticles[0];
   const largeArticles = filteredArticles.slice(1, 3);
@@ -116,7 +184,7 @@ const Index = () => {
               </div>
               <Button 
                 variant="outline" 
-                onClick={fetchArticles}
+                onClick={handleRefresh}
                 disabled={loading}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -262,6 +330,41 @@ const Index = () => {
                   </div>
                 )}
               </div>
+
+              {/* Infinite Scroll Trigger and Loading Indicator */}
+              {!searchQuery && (
+                <div className="mt-8">
+                  {loadingMore && (
+                    <div className="flex justify-center items-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+                      <span className="text-muted-foreground">Loading more articles...</span>
+                    </div>
+                  )}
+                  
+                  {hasMore && !loadingMore && (
+                    <div 
+                      ref={observerRef} 
+                      className="flex justify-center items-center py-8"
+                    >
+                      <div className="text-center text-muted-foreground">
+                        <div className="animate-pulse flex items-center justify-center">
+                          <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce"></div>
+                          <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                        <p className="mt-2 text-sm">Scroll down for more articles</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!hasMore && articles.length > 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Newspaper className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>You've reached the end of articles</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             {/* Sidebar */}
