@@ -232,8 +232,7 @@ async function getFullArticle(link) {
 
 async function rewriteWithGemini(content) {
   if (!GEMINI_API_KEY) {
-    console.warn("⚠️ Gemini API key not set. Skipping summarization.");
-    return content;
+    throw new Error("Gemini API key not available - content rewriting required");
   }
 
   if (!content || content.length < 50) {
@@ -283,32 +282,31 @@ async function rewriteWithGemini(content) {
     return rewrittenContent;
   } catch (error) {
     if (error.code === 'ECONNABORTED') {
-      console.error("⚠️ Gemini API timeout");
+      throw new Error("Gemini API timeout");
     } else if (error.response?.status === 429) {
-      console.error("⚠️ Gemini API rate limit exceeded");
+      throw new Error("Gemini API rate limit exceeded");
     } else if (error.response?.status === 403) {
-      console.error("⚠️ Gemini API authentication failed");
+      throw new Error("Gemini API authentication failed");
     } else {
-      console.error("⚠️ Gemini API error:", error.response?.data || error.message);
+      throw new Error(`Gemini API error: ${error.response?.data || error.message}`);
     }
-    return "⚠️ Content rewriting failed - using original content.";
   }
 }
 
 async function generateImage(summary, imageName) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("Gemini API key not available - image generation required");
+  }
+
+  if (!summary || summary.length < 50) {
+    throw new Error("Summary too short for image generation");
+  }
+
+  if (!imageName) {
+    throw new Error("Image name is required");
+  }
+
   try {
-    if (!GEMINI_API_KEY) {
-      throw new Error("Gemini API key not available");
-    }
-
-    if (!summary || summary.length < 50) {
-      throw new Error("Summary too short for image generation");
-    }
-
-    if (!imageName) {
-      throw new Error("Image name is required");
-    }
-
     console.log(`🎨 Generating image for: ${imageName}`);
     const ai = new GoogleGenAI({});
     const contents = `Create a high-quality, realistic news graphic image for the following article summary. The image should be visually appealing and contextually relevant, using realistic textures, natural lighting, and news-style visuals (not cartoons or abstract). Avoid text in the image.\n\n${summary}`;
@@ -400,14 +398,13 @@ async function generateImage(summary, imageName) {
 
   } catch (error) {
     console.error("❌ Image generation failed:", error.message);
-    return null; // Return null so the process can continue without image
+    throw error; // Re-throw to fail the entire process
   }
 }
 
 async function rewriteTitle(content) {
   if (!GEMINI_API_KEY) {
-    console.warn("⚠️ Gemini API key not set. Using original title.");
-    return content;
+    throw new Error("Gemini API key not available - title rewriting required");
   }
 
   if (!content || content.length < 5) {
@@ -446,11 +443,10 @@ async function rewriteTitle(content) {
     return newTitle;
   } catch (error) {
     if (error.code === 'ECONNABORTED') {
-      console.error("⚠️ Title rewrite timeout");
+      throw new Error("Title rewrite timeout");
     } else {
-      console.error("⚠️ Title rewrite error:", error.response?.data || error.message);
+      throw new Error(`Title rewrite error: ${error.response?.data || error.message}`);
     }
-    return content; // Return original title as fallback
   }
 }
 
@@ -506,7 +502,7 @@ function delay(ms) {
 }
 
 async function main(count = 15) {
-  console.log("🚀 Starting NDTV scraper with enhanced error handling...");
+  console.log("🚀 Starting NDTV scraper with fail-fast approach...");
   
   let totalProcessed = 0;
   let totalSuccessful = 0;
@@ -543,36 +539,33 @@ async function main(count = 15) {
           continue;
         }
 
-        // Process with AI
-        const [summary, newTitle] = await Promise.allSettled([
-          rewriteWithGemini(content),
-          rewriteTitle(title)
-        ]);
+        // Process with AI - ALL THREE MUST SUCCEED
+        console.log("🔄 Processing all three operations (content, title, image)...");
+        
+        // Execute all three operations - if any fail, the entire article processing fails
+        const summary = await rewriteWithGemini(content);
+        const newTitle = await rewriteTitle(title);
+        const generatedImage = await generateImage(summary, slugify(newTitle));
 
-        const processedSummary = summary.status === 'fulfilled' ? summary.value : content;
-        const processedTitle = newTitle.status === 'fulfilled' ? newTitle.value : title;
-
-        console.log(`📝 Title: "${processedTitle}"`);
-
-        // Generate image
-        const generatedImage = await generateImage(processedSummary, slugify(processedTitle));
+        console.log(`📝 Title: "${newTitle}"`);
+        console.log(`🖼️ Image: ${generatedImage ? 'Generated successfully' : 'Failed'}`);
 
         const output = {
-          text: processedSummary,
-          title: processedTitle,
+          text: summary,
+          title: newTitle,
           image: generatedImage
         };
 
-        // Upload to database
+        // Upload to database only if all three operations succeeded
         await uploadToDB(output);
         
         totalSuccessful++;
-        console.log(`✅ Article ${i + 1} processed successfully`);
+        console.log(`✅ Article ${i + 1} processed successfully - all operations completed`);
 
       } catch (error) {
         totalFailed++;
         console.error(`❌ Failed to process article ${i + 1}:`, error.message);
-        console.log("⏭️ Continuing with next article...");
+        console.log("⏭️ Skipping this article due to failure in required operations...");
       }
 
       // Rate limiting delay
