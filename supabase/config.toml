@@ -1,0 +1,4 @@
+project_id = "oyxprqbvhfpbzvtohqjv"
+
+[functions.publish-article]
+verify_jwt = false
