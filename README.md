@@ -1,4 +1,4 @@
-# 📰 AutoTribune - NDTV AI News Scraper & Publisher
+# 📰 AutoTribune - AI News Scraper & Publisher
 
 **AutoTribune** is a powerful automated tool that scrapes news articles from NDTV (via RSS feed or web scraping), rewrites them using Google's Gemini AI to remove copyright risks, generates AI-based contextual images, and publishes them to a Supabase backend.
 
