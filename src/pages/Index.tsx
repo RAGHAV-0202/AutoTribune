@@ -28,14 +28,22 @@ const Index = () => {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const observerRef = useRef<HTMLDivElement>(null);
+  const isLoadingRef = useRef(false); // Prevent multiple simultaneous loads
 
   const fetchArticles = async (pageNum: number = 0, append: boolean = false) => {
+    // Prevent multiple simultaneous requests
+    if (isLoadingRef.current) return;
+    
     try {
+      isLoadingRef.current = true;
+      
       if (!append) setLoading(true);
       else setLoadingMore(true);
 
       const from = pageNum * ARTICLES_PER_PAGE;
       const to = from + ARTICLES_PER_PAGE - 1;
+
+      console.log(`Fetching articles: page ${pageNum}, from ${from} to ${to}`);
 
       const { data, error, count } = await supabase
         .from('articles')
@@ -54,17 +62,29 @@ const Index = () => {
       }
 
       const newArticles = data || [];
+      console.log(`Received ${newArticles.length} articles`);
       
       if (append) {
-        setArticles(prev => [...prev, ...newArticles]);
+        setArticles(prev => {
+          // Avoid duplicates
+          const existingIds = new Set(prev.map(article => article.id));
+          const uniqueNewArticles = newArticles.filter(article => !existingIds.has(article.id));
+          return [...prev, ...uniqueNewArticles];
+        });
       } else {
         setArticles(newArticles);
         setPage(0);
       }
 
       // Check if there are more articles to load
-      const totalLoaded = append ? articles.length + newArticles.length : newArticles.length;
-      setHasMore(count ? totalLoaded < count : newArticles.length === ARTICLES_PER_PAGE);
+      const totalLoaded = append ? 
+        articles.length + newArticles.length : 
+        newArticles.length;
+      
+      const hasMoreArticles = count ? totalLoaded < count : newArticles.length === ARTICLES_PER_PAGE;
+      setHasMore(hasMoreArticles);
+      
+      console.log(`Has more articles: ${hasMoreArticles}, Total loaded: ${totalLoaded}, Total count: ${count}`);
 
     } catch (error) {
       console.error('Error:', error);
@@ -76,16 +96,34 @@ const Index = () => {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      isLoadingRef.current = false;
     }
   };
 
   const loadMoreArticles = useCallback(() => {
-    if (!loadingMore && hasMore && !searchQuery) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchArticles(nextPage, true);
+    // Enhanced conditions to prevent unnecessary calls
+    if (
+      isLoadingRef.current || 
+      loadingMore || 
+      !hasMore || 
+      searchQuery || 
+      loading
+    ) {
+      console.log('Skipping loadMore:', { 
+        isLoading: isLoadingRef.current, 
+        loadingMore, 
+        hasMore, 
+        searchQuery: !!searchQuery,
+        loading 
+      });
+      return;
     }
-  }, [loadingMore, hasMore, page, searchQuery]);
+
+    const nextPage = page + 1;
+    console.log(`Loading more articles - Next page: ${nextPage}`);
+    setPage(nextPage);
+    fetchArticles(nextPage, true);
+  }, [loadingMore, hasMore, page, searchQuery, loading]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -93,12 +131,13 @@ const Index = () => {
       (entries) => {
         const target = entries[0];
         if (target.isIntersecting) {
+          console.log('Intersection triggered - loading more articles');
           loadMoreArticles();
         }
       },
       {
         threshold: 0.1,
-        rootMargin: '100px',
+        rootMargin: '200px', // Increased margin for earlier loading
       }
     );
 
@@ -113,6 +152,42 @@ const Index = () => {
     };
   }, [loadMoreArticles]);
 
+  // Additional scroll event listener as backup
+  useEffect(() => {
+    const handleScroll = () => {
+      // Only trigger if intersection observer might have missed
+      const scrollHeight = document.documentElement.scrollHeight;
+      const scrollTop = document.documentElement.scrollTop;
+      const clientHeight = document.documentElement.clientHeight;
+      
+      // Trigger when user is within 300px of the bottom
+      if (scrollHeight - scrollTop <= clientHeight + 300) {
+        if (!searchQuery && hasMore && !loadingMore && !isLoadingRef.current) {
+          console.log('Scroll event triggered - loading more articles');
+          loadMoreArticles();
+        }
+      }
+    };
+
+    // Throttle scroll events
+    let ticking = false;
+    const throttledHandleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', throttledHandleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', throttledHandleScroll);
+    };
+  }, [loadMoreArticles, searchQuery, hasMore, loadingMore]);
+
   useEffect(() => {
     fetchArticles();
   }, []);
@@ -125,6 +200,7 @@ const Index = () => {
     setArticles([]);
     setPage(0);
     setHasMore(true);
+    isLoadingRef.current = false;
     fetchArticles();
   };
 
@@ -334,6 +410,7 @@ const Index = () => {
               {/* Infinite Scroll Trigger and Loading Indicator */}
               {!searchQuery && (
                 <div className="mt-8">
+                  {/* Loading indicator */}
                   {loadingMore && (
                     <div className="flex justify-center items-center py-8">
                       <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
@@ -341,10 +418,11 @@ const Index = () => {
                     </div>
                   )}
                   
+                  {/* Intersection observer trigger element */}
                   {hasMore && !loadingMore && (
                     <div 
                       ref={observerRef} 
-                      className="flex justify-center items-center py-8"
+                      className="flex justify-center items-center py-8 min-h-[100px]"
                     >
                       <div className="text-center text-muted-foreground">
                         <div className="animate-pulse flex items-center justify-center">
@@ -352,15 +430,38 @@ const Index = () => {
                           <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                           <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
-                        <p className="mt-2 text-sm">Scroll down for more articles</p>
+                        <p className="mt-2 text-sm">Loading more articles...</p>
                       </div>
                     </div>
                   )}
                   
+                  {/* Load More button as fallback */}
+                  {hasMore && !loadingMore && articles.length >= ARTICLES_PER_PAGE && (
+                    <div className="flex justify-center mt-4">
+                      <Button 
+                        onClick={loadMoreArticles}
+                        variant="outline"
+                        className="px-8"
+                        disabled={loadingMore}
+                      >
+                        {loadingMore ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          'Load More Articles'
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* End of articles indicator */}
                   {!hasMore && articles.length > 0 && (
                     <div className="text-center py-8 text-muted-foreground">
                       <Newspaper className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p>You've reached the end of articles</p>
+                      <p className="text-sm mt-1">Total articles loaded: {articles.length}</p>
                     </div>
                   )}
                 </div>
