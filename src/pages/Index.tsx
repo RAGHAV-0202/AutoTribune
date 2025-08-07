@@ -178,20 +178,82 @@ const Index = () => {
       )
     : articles;
 
-  // Fix: Create sections that adapt to available articles
-  const createArticleSections = (articles: Article[]) => {
-    const sections = {
-      featured: articles[0] || null,
-      large: articles.slice(1, 3),
-      medium: articles.slice(3, 7),
-      small: articles.slice(7, 11),
-      additional: articles.slice(11), // All remaining articles for infinite scroll
-      sidebar: articles.slice(11, 21) // Limited sidebar articles
+  // Create dynamic sections with random layouts for all articles
+  const createDynamicSections = (articles: Article[]) => {
+    const sections = [];
+    let currentIndex = 0;
+
+    // First section - traditional layout
+    if (articles.length > 0) {
+      sections.push({
+        type: 'initial',
+        featured: articles[0] || null,
+        large: articles.slice(1, 3),
+        medium: articles.slice(3, 7),
+        small: articles.slice(7, 11)
+      });
+      currentIndex = 11;
+    }
+
+    // Generate random layouts for remaining articles
+    while (currentIndex < articles.length) {
+      const remainingArticles = articles.slice(currentIndex);
+      const batchSize = Math.min(8, remainingArticles.length); // Process in batches of 8
+      const batch = remainingArticles.slice(0, batchSize);
+      
+      if (batch.length === 0) break;
+
+      // Random layout patterns
+      const layoutPatterns = [
+        // Pattern 1: Large + Medium mix
+        {
+          type: 'mixed',
+          featured: batch[0],
+          large: batch.slice(1, 3),
+          medium: batch.slice(3, 7),
+          small: batch.slice(7, 8)
+        },
+        // Pattern 2: Grid of medium articles
+        {
+          type: 'grid',
+          medium: batch.slice(0, 8)
+        },
+        // Pattern 3: Two large + small articles
+        {
+          type: 'highlight',
+          large: batch.slice(0, 2),
+          small: batch.slice(2, 8)
+        },
+        // Pattern 4: One featured + rest medium
+        {
+          type: 'featured_mix',
+          featured: batch[0],
+          medium: batch.slice(1, 8)
+        },
+        // Pattern 5: All small articles in 2 rows
+        {
+          type: 'compact',
+          small: batch.slice(0, 8)
+        }
+      ];
+
+      // Select random pattern
+      const randomPattern = layoutPatterns[Math.floor(Math.random() * layoutPatterns.length)];
+      sections.push({
+        ...randomPattern,
+        sectionIndex: sections.length
+      });
+
+      currentIndex += batchSize;
+    }
+
+    return {
+      sections,
+      sidebarArticles: articles.slice(11, 31) // Sidebar gets articles 11-30
     };
-    return sections;
   };
 
-  const sections = createArticleSections(filteredArticles);
+  const { sections, sidebarArticles } = createDynamicSections(filteredArticles);
 
   return (
     <div className="min-h-screen bg-background">
@@ -299,114 +361,305 @@ const Index = () => {
           </div>
         ) : (
           <div className="flex gap-6">
-            {/* Main Content Area */}
-            <div className="flex-1">
-              {/* Dynamic News Grid */}
-              <div className="grid grid-cols-4 gap-4 auto-rows-max">
-                {/* Featured Article - Takes 2x2 space */}
-                {sections.featured && (
-                  <ArticleCard
-                    key={sections.featured.id}
-                    id={sections.featured.id}
-                    title={sections.featured.title}
-                    content={sections.featured.content}
-                    image_url={sections.featured.image_url}
-                    published_at={sections.featured.published_at}
-                    slug={sections.featured.slug}
-                    variant="featured"
-                    onClick={() => handleArticleClick(sections.featured.slug)}
-                  />
-                )}
-                
-                {/* Medium Articles - Fill remaining space in first row */}
-                {sections.medium.slice(0, 2).map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    id={article.id}
-                    title={article.title}
-                    content={article.content}
-                    image_url={article.image_url}
-                    published_at={article.published_at}
-                    slug={article.slug}
-                    variant="medium"
-                    onClick={() => handleArticleClick(article.slug)}
-                  />
-                ))}
-                
-                {/* Large Articles - Take 2 columns each */}
-                {sections.large.map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    id={article.id}
-                    title={article.title}
-                    content={article.content}
-                    image_url={article.image_url}
-                    published_at={article.published_at}
-                    slug={article.slug}
-                    variant="large"
-                    onClick={() => handleArticleClick(article.slug)}
-                  />
-                ))}
-                
-                {/* More Medium Articles */}
-                {sections.medium.slice(2).map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    id={article.id}
-                    title={article.title}
-                    content={article.content}
-                    image_url={article.image_url}
-                    published_at={article.published_at}
-                    slug={article.slug}
-                    variant="medium"
-                    onClick={() => handleArticleClick(article.slug)}
-                  />
-                ))}
-                
-                {/* Small Articles - Full width row */}
-                {sections.small.length > 0 && (
-                  <div className="col-span-4 grid grid-cols-2 gap-4">
-                    {sections.small.map((article) => (
-                      <ArticleCard
-                        key={article.id}
-                        id={article.id}
-                        title={article.title}
-                        content={article.content}
-                        image_url={article.image_url}
-                        published_at={article.published_at}
-                        slug={article.slug}
-                        variant="small"
-                        onClick={() => handleArticleClick(article.slug)}
-                      />
-                    ))}
-                  </div>
-                )}
+  // Render a single section with dynamic layout
+  const renderSection = (section: any, index: number) => {
+    const sectionKey = `section-${index}`;
+    
+    if (section.type === 'initial') {
+      return (
+        <div key={sectionKey} className="grid grid-cols-4 gap-4 auto-rows-max mb-8">
+          {/* Featured Article - Takes 2x2 space */}
+          {section.featured && (
+            <ArticleCard
+              key={section.featured.id}
+              id={section.featured.id}
+              title={section.featured.title}
+              content={section.featured.content}
+              image_url={section.featured.image_url}
+              published_at={section.featured.published_at}
+              slug={section.featured.slug}
+              variant="featured"
+              onClick={() => handleArticleClick(section.featured.slug)}
+            />
+          )}
+          
+          {/* Medium Articles - Fill remaining space in first row */}
+          {section.medium.slice(0, 2).map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="medium"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* Large Articles - Take 2 columns each */}
+          {section.large.map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="large"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* More Medium Articles */}
+          {section.medium.slice(2).map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="medium"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* Small Articles - Full width row */}
+          {section.small.length > 0 && (
+            <div className="col-span-4 grid grid-cols-2 gap-4">
+              {section.small.map((article: Article) => (
+                <ArticleCard
+                  key={article.id}
+                  id={article.id}
+                  title={article.title}
+                  content={article.content}
+                  image_url={article.image_url}
+                  published_at={article.published_at}
+                  slug={article.slug}
+                  variant="small"
+                  onClick={() => handleArticleClick(article.slug)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
 
-                {/* Additional Articles for Infinite Scroll - Simple grid layout */}
-                {sections.additional.length > 0 && (
-                  <div className="col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sections.additional.map((article) => (
-                      <ArticleCard
-                        key={article.id}
-                        id={article.id}
-                        title={article.title}
-                        content={article.content}
-                        image_url={article.image_url}
-                        published_at={article.published_at}
-                        slug={article.slug}
-                        variant="medium"
-                        onClick={() => handleArticleClick(article.slug)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+    if (section.type === 'mixed') {
+      return (
+        <div key={sectionKey} className="grid grid-cols-4 gap-4 auto-rows-max mb-8">
+          {/* Featured article */}
+          {section.featured && (
+            <ArticleCard
+              key={section.featured.id}
+              id={section.featured.id}
+              title={section.featured.title}
+              content={section.featured.content}
+              image_url={section.featured.image_url}
+              published_at={section.featured.published_at}
+              slug={section.featured.slug}
+              variant="featured"
+              onClick={() => handleArticleClick(section.featured.slug)}
+            />
+          )}
+          
+          {/* Medium articles fill remaining space */}
+          {section.medium.slice(0, 2).map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="medium"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* Large articles */}
+          {section.large.map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="large"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* Rest of medium articles */}
+          {section.medium.slice(2).map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="medium"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* Small articles */}
+          {section.small && section.small.length > 0 && (
+            <div className="col-span-4 grid grid-cols-4 gap-4">
+              {section.small.map((article: Article) => (
+                <ArticleCard
+                  key={article.id}
+                  id={article.id}
+                  title={article.title}
+                  content={article.content}
+                  image_url={article.image_url}
+                  published_at={article.published_at}
+                  slug={article.slug}
+                  variant="small"
+                  onClick={() => handleArticleClick(article.slug)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (section.type === 'grid') {
+      return (
+        <div key={sectionKey} className="grid grid-cols-4 gap-4 mb-8">
+          {section.medium.map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="medium"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    if (section.type === 'highlight') {
+      return (
+        <div key={sectionKey} className="grid grid-cols-4 gap-4 auto-rows-max mb-8">
+          {/* Two large articles side by side */}
+          {section.large.map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="large"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+          
+          {/* Small articles fill remaining space */}
+          {section.small.length > 0 && (
+            <div className="col-span-4 grid grid-cols-3 gap-4">
+              {section.small.map((article: Article) => (
+                <ArticleCard
+                  key={article.id}
+                  id={article.id}
+                  title={article.title}
+                  content={article.content}
+                  image_url={article.image_url}
+                  published_at={article.published_at}
+                  slug={article.slug}
+                  variant="small"
+                  onClick={() => handleArticleClick(article.slug)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (section.type === 'featured_mix') {
+      return (
+        <div key={sectionKey} className="grid grid-cols-4 gap-4 auto-rows-max mb-8">
+          {/* Featured article takes 2x2 */}
+          {section.featured && (
+            <ArticleCard
+              key={section.featured.id}
+              id={section.featured.id}
+              title={section.featured.title}
+              content={section.featured.content}
+              image_url={section.featured.image_url}
+              published_at={section.featured.published_at}
+              slug={section.featured.slug}
+              variant="featured"
+              onClick={() => handleArticleClick(section.featured.slug)}
+            />
+          )}
+          
+          {/* Medium articles fill around */}
+          {section.medium.map((article: Article, idx: number) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant={idx < 2 ? "medium" : "small"}
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    if (section.type === 'compact') {
+      return (
+        <div key={sectionKey} className="grid grid-cols-4 gap-4 mb-8">
+          {section.small.map((article: Article) => (
+            <ArticleCard
+              key={article.id}
+              id={article.id}
+              title={article.title}
+              content={article.content}
+              image_url={article.image_url}
+              published_at={article.published_at}
+              slug={article.slug}
+              variant="small"
+              onClick={() => handleArticleClick(article.slug)}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return null;
+  };
 
               {/* Debug Info */}
               {process.env.NODE_ENV === 'development' && (
                 <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
                   <p>Total Articles: {articles.length}</p>
                   <p>Filtered Articles: {filteredArticles.length}</p>
+                  <p>Sections: {sections.length}</p>
                   <p>Current Page: {page}</p>
                   <p>Has More: {hasMore.toString()}</p>
                   <p>Loading More: {loadingMore.toString()}</p>
@@ -457,7 +710,7 @@ const Index = () => {
             {/* Sidebar */}
             <div className="w-80 flex-shrink-0">
               <Sidebar 
-                articles={sections.sidebar} 
+                articles={sidebarArticles} 
                 onArticleClick={handleArticleClick}
               />
             </div>
