@@ -28,10 +28,9 @@ const Index = () => {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const observerRef = useRef<HTMLDivElement>(null);
-  const isLoadingRef = useRef(false); // Prevent multiple simultaneous loads
+  const isLoadingRef = useRef(false);
 
   const fetchArticles = async (pageNum: number = 0, append: boolean = false) => {
-    // Prevent multiple simultaneous requests
     if (isLoadingRef.current) return;
     
     try {
@@ -66,25 +65,30 @@ const Index = () => {
       
       if (append) {
         setArticles(prev => {
-          // Avoid duplicates
           const existingIds = new Set(prev.map(article => article.id));
           const uniqueNewArticles = newArticles.filter(article => !existingIds.has(article.id));
-          return [...prev, ...uniqueNewArticles];
+          console.log(`Adding ${uniqueNewArticles.length} unique new articles`);
+          const updated = [...prev, ...uniqueNewArticles];
+          console.log(`Total articles after append: ${updated.length}`);
+          return updated;
         });
       } else {
         setArticles(newArticles);
         setPage(0);
       }
 
-      // Check if there are more articles to load
-      const totalLoaded = append ? 
-        articles.length + newArticles.length : 
-        newArticles.length;
-      
-      const hasMoreArticles = count ? totalLoaded < count : newArticles.length === ARTICLES_PER_PAGE;
-      setHasMore(hasMoreArticles);
-      
-      console.log(`Has more articles: ${hasMoreArticles}, Total loaded: ${totalLoaded}, Total count: ${count}`);
+      // Fix: Use the current articles length for hasMore calculation
+      setArticles(currentArticles => {
+        const totalLoaded = append ? 
+          currentArticles.length : 
+          newArticles.length;
+        
+        const hasMoreArticles = count ? totalLoaded < count : newArticles.length === ARTICLES_PER_PAGE;
+        setHasMore(hasMoreArticles);
+        
+        console.log(`Has more articles: ${hasMoreArticles}, Total loaded: ${totalLoaded}, Total count: ${count}`);
+        return currentArticles;
+      });
 
     } catch (error) {
       console.error('Error:', error);
@@ -101,7 +105,6 @@ const Index = () => {
   };
 
   const loadMoreArticles = useCallback(() => {
-    // Enhanced conditions to prevent unnecessary calls
     if (
       isLoadingRef.current || 
       loadingMore || 
@@ -120,24 +123,24 @@ const Index = () => {
     }
 
     const nextPage = page + 1;
-    console.log(`Loading more articles - Next page: ${nextPage}`);
+    console.log(`Loading more articles - Next page: ${nextPage}, Current articles: ${articles.length}`);
     setPage(nextPage);
     fetchArticles(nextPage, true);
-  }, [loadingMore, hasMore, page, searchQuery, loading]);
+  }, [loadingMore, hasMore, page, searchQuery, loading, articles.length]); // Added articles.length dependency
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         const target = entries[0];
-        if (target.isIntersecting) {
+        if (target.isIntersecting && !searchQuery) { // Added searchQuery check
           console.log('Intersection triggered - loading more articles');
           loadMoreArticles();
         }
       },
       {
         threshold: 0.1,
-        rootMargin: '200px', // Increased margin for earlier loading
+        rootMargin: '100px', // Reduced margin to prevent premature loading
       }
     );
 
@@ -151,42 +154,6 @@ const Index = () => {
       }
     };
   }, [loadMoreArticles]);
-
-  // Additional scroll event listener as backup
-  useEffect(() => {
-    const handleScroll = () => {
-      // Only trigger if intersection observer might have missed
-      const scrollHeight = document.documentElement.scrollHeight;
-      const scrollTop = document.documentElement.scrollTop;
-      const clientHeight = document.documentElement.clientHeight;
-      
-      // Trigger when user is within 300px of the bottom
-      if (scrollHeight - scrollTop <= clientHeight + 300) {
-        if (!searchQuery && hasMore && !loadingMore && !isLoadingRef.current) {
-          console.log('Scroll event triggered - loading more articles');
-          loadMoreArticles();
-        }
-      }
-    };
-
-    // Throttle scroll events
-    let ticking = false;
-    const throttledHandleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          handleScroll();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', throttledHandleScroll, { passive: true });
-    
-    return () => {
-      window.removeEventListener('scroll', throttledHandleScroll);
-    };
-  }, [loadMoreArticles, searchQuery, hasMore, loadingMore]);
 
   useEffect(() => {
     fetchArticles();
@@ -211,11 +178,20 @@ const Index = () => {
       )
     : articles;
 
-  const featuredArticle = filteredArticles[0];
-  const largeArticles = filteredArticles.slice(1, 3);
-  const mediumArticles = filteredArticles.slice(3, 7);
-  const smallArticles = filteredArticles.slice(7, 11);
-  const sidebarArticles = filteredArticles.slice(11);
+  // Fix: Create sections that adapt to available articles
+  const createArticleSections = (articles: Article[]) => {
+    const sections = {
+      featured: articles[0] || null,
+      large: articles.slice(1, 3),
+      medium: articles.slice(3, 7),
+      small: articles.slice(7, 11),
+      additional: articles.slice(11), // All remaining articles for infinite scroll
+      sidebar: articles.slice(11, 21) // Limited sidebar articles
+    };
+    return sections;
+  };
+
+  const sections = createArticleSections(filteredArticles);
 
   return (
     <div className="min-h-screen bg-background">
@@ -328,22 +304,22 @@ const Index = () => {
               {/* Dynamic News Grid */}
               <div className="grid grid-cols-4 gap-4 auto-rows-max">
                 {/* Featured Article - Takes 2x2 space */}
-                {featuredArticle && (
+                {sections.featured && (
                   <ArticleCard
-                    key={featuredArticle.id}
-                    id={featuredArticle.id}
-                    title={featuredArticle.title}
-                    content={featuredArticle.content}
-                    image_url={featuredArticle.image_url}
-                    published_at={featuredArticle.published_at}
-                    slug={featuredArticle.slug}
+                    key={sections.featured.id}
+                    id={sections.featured.id}
+                    title={sections.featured.title}
+                    content={sections.featured.content}
+                    image_url={sections.featured.image_url}
+                    published_at={sections.featured.published_at}
+                    slug={sections.featured.slug}
                     variant="featured"
-                    onClick={() => handleArticleClick(featuredArticle.slug)}
+                    onClick={() => handleArticleClick(sections.featured.slug)}
                   />
                 )}
                 
                 {/* Medium Articles - Fill remaining space in first row */}
-                {mediumArticles.slice(0, 2).map((article) => (
+                {sections.medium.slice(0, 2).map((article) => (
                   <ArticleCard
                     key={article.id}
                     id={article.id}
@@ -358,7 +334,7 @@ const Index = () => {
                 ))}
                 
                 {/* Large Articles - Take 2 columns each */}
-                {largeArticles.map((article) => (
+                {sections.large.map((article) => (
                   <ArticleCard
                     key={article.id}
                     id={article.id}
@@ -373,7 +349,7 @@ const Index = () => {
                 ))}
                 
                 {/* More Medium Articles */}
-                {mediumArticles.slice(2).map((article) => (
+                {sections.medium.slice(2).map((article) => (
                   <ArticleCard
                     key={article.id}
                     id={article.id}
@@ -388,9 +364,9 @@ const Index = () => {
                 ))}
                 
                 {/* Small Articles - Full width row */}
-                {smallArticles.length > 0 && (
+                {sections.small.length > 0 && (
                   <div className="col-span-4 grid grid-cols-2 gap-4">
-                    {smallArticles.map((article) => (
+                    {sections.small.map((article) => (
                       <ArticleCard
                         key={article.id}
                         id={article.id}
@@ -405,7 +381,38 @@ const Index = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Additional Articles for Infinite Scroll - Simple grid layout */}
+                {sections.additional.length > 0 && (
+                  <div className="col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sections.additional.map((article) => (
+                      <ArticleCard
+                        key={article.id}
+                        id={article.id}
+                        title={article.title}
+                        content={article.content}
+                        image_url={article.image_url}
+                        published_at={article.published_at}
+                        slug={article.slug}
+                        variant="medium"
+                        onClick={() => handleArticleClick(article.slug)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* Debug Info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
+                  <p>Total Articles: {articles.length}</p>
+                  <p>Filtered Articles: {filteredArticles.length}</p>
+                  <p>Current Page: {page}</p>
+                  <p>Has More: {hasMore.toString()}</p>
+                  <p>Loading More: {loadingMore.toString()}</p>
+                  <p>Search Query: {searchQuery || 'None'}</p>
+                </div>
+              )}
 
               {/* Infinite Scroll Trigger and Loading Indicator */}
               {!searchQuery && (
@@ -430,29 +437,8 @@ const Index = () => {
                           <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                           <div className="w-2 h-2 bg-current rounded-full mx-1 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
-                        <p className="mt-2 text-sm">Loading more articles...</p>
+                        <p className="mt-2 text-sm">Scroll to load more...</p>
                       </div>
-                    </div>
-                  )}
-                  
-                  {/* Load More button as fallback */}
-                  {hasMore && !loadingMore && articles.length >= ARTICLES_PER_PAGE && (
-                    <div className="flex justify-center mt-4">
-                      <Button 
-                        onClick={loadMoreArticles}
-                        variant="outline"
-                        className="px-8"
-                        disabled={loadingMore}
-                      >
-                        {loadingMore ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Loading...
-                          </>
-                        ) : (
-                          'Load More Articles'
-                        )}
-                      </Button>
                     </div>
                   )}
                   
@@ -471,7 +457,7 @@ const Index = () => {
             {/* Sidebar */}
             <div className="w-80 flex-shrink-0">
               <Sidebar 
-                articles={sidebarArticles} 
+                articles={sections.sidebar} 
                 onArticleClick={handleArticleClick}
               />
             </div>
