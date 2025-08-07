@@ -126,21 +126,21 @@ const Index = () => {
     console.log(`Loading more articles - Next page: ${nextPage}, Current articles: ${articles.length}`);
     setPage(nextPage);
     fetchArticles(nextPage, true);
-  }, [loadingMore, hasMore, page, searchQuery, loading, articles.length]); // Added articles.length dependency
+  }, [loadingMore, hasMore, page, searchQuery, loading, articles.length]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         const target = entries[0];
-        if (target.isIntersecting && !searchQuery) { // Added searchQuery check
+        if (target.isIntersecting && !searchQuery) {
           console.log('Intersection triggered - loading more articles');
           loadMoreArticles();
         }
       },
       {
         threshold: 0.1,
-        rootMargin: '100px', // Reduced margin to prevent premature loading
+        rootMargin: '100px',
       }
     );
 
@@ -255,112 +255,6 @@ const Index = () => {
 
   const { sections, sidebarArticles } = createDynamicSections(filteredArticles);
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation Header */}
-      <nav className="bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-12 text-sm">
-            <div className="flex items-center space-x-6">
-              <span>WORLD</span>
-              <span>PROFIT</span>
-              <span>BQ</span>
-              <span>MOVIES</span>
-              <span>CRICKET</span>
-              <span>FOOD</span>
-              <span>LIFESTYLE</span>
-              <span>HEALTH</span>
-              <span>TECH</span>
-              <span>GAMES</span>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Header */}
-      <header className="border-b border-border bg-card shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Newspaper className="w-8 h-8 text-primary" />
-              <h1 className="text-3xl font-bold text-foreground">AutoTribune</h1>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Search news..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={handleRefresh}
-                disabled={loading}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        {loading ? (
-          <div className="flex gap-6">
-            <div className="flex-1">
-              <div className="animate-pulse">
-                <div className="aspect-[16/9] bg-muted rounded-lg mb-4"></div>
-                <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-muted rounded w-full mb-1"></div>
-                <div className="h-4 bg-muted rounded w-2/3"></div>
-              </div>
-              
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="aspect-video bg-muted rounded-lg mb-2"></div>
-                    <div className="h-4 bg-muted rounded w-3/4 mb-1"></div>
-                    <div className="h-3 bg-muted rounded w-1/2"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="w-80">
-              <div className="space-y-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="animate-pulse flex gap-3">
-                    <div className="w-16 h-12 bg-muted rounded"></div>
-                    <div className="flex-1">
-                      <div className="h-3 bg-muted rounded w-full mb-1"></div>
-                      <div className="h-3 bg-muted rounded w-2/3"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : filteredArticles.length === 0 ? (
-          <div className="text-center py-12">
-            <Newspaper className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">
-              {searchQuery ? 'No articles match your search' : 'No Articles Yet'}
-            </h2>
-            <p className="text-muted-foreground">
-              {searchQuery 
-                ? 'Try adjusting your search terms.' 
-                : 'Articles published through your script will appear here.'
-              }
-            </p>
-          </div>
-        ) : (
-          <div className="flex gap-6">
   // Render a single section with dynamic layout
   const renderSection = (section: any, index: number) => {
     const sectionKey = `section-${index}`;
@@ -653,6 +547,117 @@ const Index = () => {
 
     return null;
   };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Navigation Header */}
+      <nav className="bg-primary text-primary-foreground">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-12 text-sm">
+            <div className="flex items-center space-x-6">
+              <span>WORLD</span>
+              <span>PROFIT</span>
+              <span>BQ</span>
+              <span>MOVIES</span>
+              <span>CRICKET</span>
+              <span>FOOD</span>
+              <span>LIFESTYLE</span>
+              <span>HEALTH</span>
+              <span>TECH</span>
+              <span>GAMES</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Header */}
+      <header className="border-b border-border bg-card shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Newspaper className="w-8 h-8 text-primary" />
+              <h1 className="text-3xl font-bold text-foreground">AutoTribune</h1>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Search news..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-64"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        {loading ? (
+          <div className="flex gap-6">
+            <div className="flex-1">
+              <div className="animate-pulse">
+                <div className="aspect-[16/9] bg-muted rounded-lg mb-4"></div>
+                <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-muted rounded w-full mb-1"></div>
+                <div className="h-4 bg-muted rounded w-2/3"></div>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-video bg-muted rounded-lg mb-2"></div>
+                    <div className="h-4 bg-muted rounded w-3/4 mb-1"></div>
+                    <div className="h-3 bg-muted rounded w-1/2"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="w-80">
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="animate-pulse flex gap-3">
+                    <div className="w-16 h-12 bg-muted rounded"></div>
+                    <div className="flex-1">
+                      <div className="h-3 bg-muted rounded w-full mb-1"></div>
+                      <div className="h-3 bg-muted rounded w-2/3"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : filteredArticles.length === 0 ? (
+          <div className="text-center py-12">
+            <Newspaper className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {searchQuery ? 'No articles match your search' : 'No Articles Yet'}
+            </h2>
+            <p className="text-muted-foreground">
+              {searchQuery 
+                ? 'Try adjusting your search terms.' 
+                : 'Articles published through your script will appear here.'
+              }
+            </p>
+          </div>
+        ) : (
+          <div className="flex gap-6">
+            {/* Main Content Area */}
+            <div className="flex-1">
+              {/* Dynamic News Sections */}
+              {sections.map((section, index) => renderSection(section, index))}
 
               {/* Debug Info */}
               {process.env.NODE_ENV === 'development' && (
